@@ -28,16 +28,16 @@ public sealed class LembreteQueryDTO
         /// Direção (DESC - ASC) da ordenação dos registros retornados. Padrão DESC.
         /// </summary>        
         public string Direcao { get; set; } = C_DIRECAO_PADRAO;
-        
-        public string Descricao { get; set; } = string.Empty;
-        
-        public DateTime DataCadastroInicial { get; set; } = DateTime.MinValue;
-        
-        public DateTime DataCadastroFinal { get; set; } = DateTime.MinValue;
 
-        public DateTime DataAtualizacaoInicial { get; set; } = DateTime.MaxValue;
+        public string? Descricao { get; set; } = null;
 
-        public DateTime DataAtualizacaoFinal { get; set; } = DateTime.MaxValue;
+        public DateTime? DataCadastroInicial { get; set; }
+        
+        public DateTime? DataCadastroFinal { get; set; }
+
+        public DateTime? DataAtualizacaoInicial { get; set; }
+
+        public DateTime? DataAtualizacaoFinal { get; set; }
     }
 
     public sealed class LembreteQueryResponseDTO

@@ -200,44 +200,87 @@ public class Program
         //tudo que for colocado após o run será executado somente quando a api for parada
     }
 
-    private static async Task<(List<Lembrete>, long)>FiltrarLembretes(
-        LembreteQueryDTO.LembreteQueryRequestDTO dto, MySqlContexto contexto)
+    private static async Task<(List<Lembrete>, long)> FiltrarLembretes(
+    LembreteQueryDTO.LembreteQueryRequestDTO dto, MySqlContexto contexto)
     {
         var query = contexto.Lembrete
-                .AsNoTracking()
-                .Where(x => x.IsAtivo);
+            .AsNoTracking()
+            .Where(x => x.IsAtivo);
 
-        //busca por descrição com tratamento de caracteres especiais para LIKE
+        // Filtro por descrição
         if (!string.IsNullOrWhiteSpace(dto.Descricao))
         {
-            var termo = dto.Descricao.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+            var termo = dto.Descricao.Replace("\\", "\\\\")
+                                    .Replace("%", "\\%")
+                                    .Replace("_", "\\_");
+
             query = query.Where(x => EF.Functions.Like(x.Descricao, $"%{termo}%"));
         }
 
-        // Filtros opcionais
-        if (dto.DataCadastroInicial > DateTime.MinValue)
-            query = query.Where(x => x.DataCadastro >= dto.DataCadastroInicial);
+        // Filtro por data de cadastro inicial
+        if (dto.DataCadastroInicial.HasValue)
+        {
+            var dataInicial = dto.DataCadastroInicial.Value;
 
-        if (dto.DataCadastroFinal < DateTime.MaxValue)
-            query = query.Where(x => x.DataCadastro < dto.DataCadastroFinal.Date.AddDays(1)); // inclui o dia inteiro
+            query = query.Where(x => x.DataCadastro >= dataInicial);
+        }
 
-        if (dto.DataAtualizacaoInicial > DateTime.MinValue)
-            query = query.Where(x => x.DataAtualizacao >= dto.DataAtualizacaoInicial);
+        // Filtro por data de cadastro final
+        if (dto.DataCadastroFinal.HasValue)
+        {
+            var dataFinal = dto.DataCadastroFinal.Value.Date.AddDays(1);
 
-        if (dto.DataAtualizacaoFinal < DateTime.MaxValue)
-            query = query.Where(x => x.DataAtualizacao < dto.DataAtualizacaoFinal.Date.AddDays(1)); // inclui o dia inteiro
+            query = query.Where(x => x.DataCadastro < dataFinal);
+        }
 
-        //ordenar sempre do mais recente para o mais antigo
-        if (dto.Direcao.ToUpper() != "ASC" && dto.Direcao.ToUpper() != "DESC")
-            dto.Direcao = "DESC";
+        // Filtro por data de atualização inicial
+        if (dto.DataAtualizacaoInicial.HasValue)
+        {
+            var dataInicial = dto.DataAtualizacaoInicial.Value;
 
-        //ordenação
-        query = dto.Direcao.ToUpper() == "DESC" ? query.OrderByDescending(x => dto.Ordem) : query.OrderBy(x => dto.Ordem);
+            query = query.Where(x => x.DataAtualizacao >= dataInicial);
+        }
 
-        // paginação
+        // Filtro por data de atualização final
+        if (dto.DataAtualizacaoFinal.HasValue)
+        {
+            var dataFinal = dto.DataAtualizacaoFinal.Value.Date.AddDays(1);
+
+            query = query.Where(x => x.DataAtualizacao < dataFinal);
+        }
+
+        // Ordenação
+        var descendente = string.Equals(
+            dto.Direcao,
+            "DESC",
+            StringComparison.OrdinalIgnoreCase
+        );
+
+        query = dto.Ordem?.ToUpperInvariant() switch
+        {
+            "DESCRICAO" => descendente
+                ? query.OrderByDescending(x => x.Descricao).ThenBy(x => x.Id)
+                : query.OrderBy(x => x.Descricao).ThenBy(x => x.Id),
+
+            "DATAATUALIZACAO" => descendente
+                ? query.OrderByDescending(x => x.DataAtualizacao).ThenBy(x => x.Id)
+                : query.OrderBy(x => x.DataAtualizacao).ThenBy(x => x.Id),
+
+            _ => descendente
+                ? query.OrderByDescending(x => x.DataCadastro).ThenBy(x => x.Id)
+                : query.OrderBy(x => x.DataCadastro).ThenBy(x => x.Id)
+        };
+
+        // Total antes da paginação
+        var total = await query.LongCountAsync();
+
+        // Paginação
         var pular = (dto.NumeroPagina - 1) * dto.TamanhoPagina;
-        var lembretes = await query.Skip(pular).Take(dto.TamanhoPagina).ToListAsync();
-        var total = await query.CountAsync();
+
+        var lembretes = await query
+            .Skip(pular)
+            .Take(dto.TamanhoPagina)
+            .ToListAsync();
 
         return (lembretes, total);
     }
